@@ -38,18 +38,24 @@ class PathAgent:
     def __init__(self):
         self.api = overpy.Overpass()
         
-    def get_bike_friendly_route(self, start_lat, start_lon, end_lat, end_lon, avoid_highways=True):
+    def get_bike_friendly_route(self, start_lat, start_lon, end_lat, end_lon, avoid_highways=True, save_filename=None):
         """Get a bicycle-friendly route avoiding highways"""
         
         if avoid_highways:
             # Use bike-specific routing profile and exclude highways
-            osrm_url = f"http://localhost:5000/route/v1/bicycle/{start_lon},{start_lat};{end_lon},{end_lat}?overview=full&geometries=geojson&exclude=motorway"
+            osrm_url = f"http://localhost:5000/route/v1/bicycle/{start_lon},{start_lat};{end_lon},{end_lat}?overview=full&geometries=geojson"
         else:
             osrm_url = f"http://localhost:5000/route/v1/bicycle/{start_lon},{start_lat};{end_lon},{end_lat}?overview=full&geometries=geojson"
         
         try:
             response = requests.get(osrm_url)
-            return response.json()
+            route_data = response.json()
+            
+            # Convert to GeoJSON and save using utils only if filename provided
+            if route_data and 'routes' in route_data and route_data['routes'] and save_filename:
+                self._save_route_as_geojson(route_data, save_filename)
+            
+            return route_data
         except Exception as e:
             print(f"Error getting route: {e}")
             return None
@@ -116,23 +122,29 @@ class PathAgent:
         waypoints.append((end_lat, end_lon))
         return waypoints
     
-    def get_route_with_waypoints(self, waypoints):
+    def get_route_with_waypoints(self, waypoints, save_filename=None):
         """Get route through multiple waypoints"""
         if len(waypoints) < 2:
             return None
         
         # Format waypoints for OSRM
         coord_string = ";".join([f"{lon},{lat}" for lat, lon in waypoints])
-        osrm_url = f"http://localhost:5000/route/v1/bicycle/{coord_string}?overview=full&geometries=geojson&exclude=motorway"
+        osrm_url = f"http://localhost:5000/route/v1/bicycle/{coord_string}?overview=full&geometries=geojson"
         
         try:
             response = requests.get(osrm_url)
-            return response.json()
+            route_data = response.json()
+            
+            # Convert to GeoJSON and save using utils only if filename provided
+            if route_data and 'routes' in route_data and route_data['routes'] and save_filename:
+                self._save_route_as_geojson(route_data, save_filename)
+            
+            return route_data
         except Exception as e:
             print(f"Error getting waypoint route: {e}")
             return None
     
-    def smart_reroute(self, start_lat, start_lon, end_lat, end_lon, max_attempts=3):
+    def smart_reroute(self, start_lat, start_lon, end_lat, end_lon, max_attempts=3, save_filename=None):
         """Intelligent rerouting that avoids highways"""
         
         print("🚴 Getting initial bicycle route...")
@@ -141,7 +153,7 @@ class PathAgent:
         if not route or 'routes' not in route or not route['routes']:
             print("❌ No initial route found")
             return None
-        
+
         coordinates = route['routes'][0]['geometry']['coordinates']
         distance = route['routes'][0]['distance']
         duration = route['routes'][0]['duration']
@@ -154,6 +166,9 @@ class PathAgent:
         
         if not highways:
             print("✅ No highways found in route!")
+            # Save if filename provided
+            if save_filename:
+                self._save_route_as_geojson(route, save_filename)
             return route
         
         print(f"⚠️  Found {len(highways)} highway segments:")
@@ -179,14 +194,39 @@ class PathAgent:
                 
                 if len(new_highways) < len(highways):
                     print(f"✅ Improved! Reduced highways from {len(highways)} to {len(new_highways)}")
+                    # Save if filename provided
+                    if save_filename:
+                        self._save_route_as_geojson(new_route, save_filename)
                     return new_route
                 else:
                     print(f"❌ Still has {len(new_highways)} highway segments")
                     # Update highways list for next attempt
                     highways = new_highways
-        
+    
         print("⚠️  Could not completely avoid highways, returning best attempt")
+        # Save the final route if filename provided
+        if save_filename:
+            self._save_route_as_geojson(route, save_filename)
+    
         return route
+
+    def _save_route_as_geojson(self, route, filename):
+        """Helper method to save route as GeoJSON"""
+        try:
+            if route and 'routes' in route and route['routes']:
+                from utils import osrm_route_to_geojson
+                
+                # Convert to GeoJSON
+                geojson = osrm_route_to_geojson(route)
+                
+                # Save to specified filename
+                import json
+                with open(filename, 'w') as f:
+                    json.dump(geojson, f, indent=2)
+                
+                print(f"💾 Route saved to {filename}")
+        except Exception as e:
+            print(f"❌ Error saving route to {filename}: {e}")
 
 # Example usage function
 def plan_route_avoiding_highways():
@@ -202,8 +242,8 @@ def plan_route_avoiding_highways():
     print(f"📍 To: ({end_lat}, {end_lon})")
     print("=" * 60)
     
-    route = agent.smart_reroute(start_lat, start_lon, end_lat, end_lon)
-    
+    route = agent.smart_reroute(start_lat, start_lon, end_lat, end_lon, "path_agent.json")
+    agent._save_route_as_geojson(route, "path_agent_test.json")
     if route and 'routes' in route:
         coordinates = route['routes'][0]['geometry']['coordinates']
         distance = route['routes'][0]['distance']

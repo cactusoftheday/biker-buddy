@@ -5,9 +5,9 @@ from typing import List, Dict, Optional, Any
 
 def create_openai_client(api_key: str):
     """
-    Initializes the OpenAI API client.
+    Initializes and returns the OpenAI API client with the given API key.
     """
-    openai.api_key = api_key
+    return openai.OpenAI(api_key=api_key)
 
 
 def format_messages(
@@ -30,21 +30,23 @@ def call_chat_completion(
     model: str = "gpt-4",
     temperature: float = 0.7,
     max_tokens: Optional[int] = None,
+    client: Optional[Any] = None,
     **kwargs
 ) -> str:
     """
     Calls the OpenAI Chat Completions API and returns the assistant's response.
     """
-    response = openai.ChatCompletion.create(
+    if client is None:
+        raise ValueError("OpenAI client must be provided")
+    response = client.chat.completions.create(
         model=model,
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
         **kwargs
     )
+    response = response.model_dump()  # Convert pydantic object to dict
     return response["choices"][0]["message"]["content"].strip()
-
-
 def chat_with_openai(
     api_key: str,
     system_prompt: str,
@@ -58,9 +60,9 @@ def chat_with_openai(
     """
     High-level utility to initialize the client, format messages, and get a response.
     """
-    create_openai_client(api_key)
+    client = create_openai_client(api_key)
     messages = format_messages(system_prompt, user_prompt, additional_messages)
-    return call_chat_completion(messages, model, temperature, max_tokens, **kwargs)
+    return call_chat_completion(messages, model, temperature, max_tokens, client=client, **kwargs)
 
 
 def osrm_route_to_geojson(osrm_response: Dict[str, Any], include_properties: bool = True) -> Dict[str, Any]:
