@@ -660,12 +660,12 @@ def analyze_my_route():
     """Example usage of the RouteAnalysisAgent"""
     
     # Initialize the agent
-    api_key = "your_openai_api_key_here"
+    api_key = "your_openai_api_key_here"  # Replace with your OpenAI API key
     agent = RouteAnalysisAgent(api_key)
     
     # Analyze the route
     analysis = agent.analyze_route(
-        geojson_file="/home/isaac/biker/route.json",
+        geojson_file="/home/isaac/biker/route.json", #change to your route file
         sample_distance_m=250,    # Sample every 250 meters
         detour_radius_m=250       # Look 250m around each point for detours
     )
