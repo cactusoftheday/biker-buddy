@@ -660,7 +660,7 @@ def analyze_my_route():
     """Example usage of the RouteAnalysisAgent"""
     
     # Initialize the agent
-    api_key = "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"
+    api_key = "your_openai_api_key_here"
     agent = RouteAnalysisAgent(api_key)
     
     # Analyze the route
